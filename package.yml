@@ -1,0 +1,25 @@
+package: kganalytics
+version: '1.0.0'
+author: 'Kreatif'
+compile: 1
+
+requires:
+    php:
+        version: '>=7, <9'
+
+page:
+    title: Google Analytics
+    block: system
+    prio: 90
+    icon: rex-icon fa-chart-pie
+    perm: kganalytics[]
+    subpages:
+        settings:
+            title: 'translate:settings'
+            icon: rex-icon fa-sliders
+            perm: kganalytics[settings]
+        info:
+            title: 'translate:info'
+            icon: rex-icon fa-info
+            itemclass: pull-right
+            perm: kganalytics[settings]

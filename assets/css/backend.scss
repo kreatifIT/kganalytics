@@ -1,0 +1,18 @@
+.rex-nav-main-list {
+    .rex-icon {
+        &.fa-chart-pie:before {
+            content: '';
+            background-image: url('../img/chart-area-solid.svg');
+            height: 14px;
+            width: 14px;
+            display: block;
+        }
+    }
+}
+
+
+.kga-panel {
+    .panel-body {
+        padding-bottom: 10px;
+    }
+}
