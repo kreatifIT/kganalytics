@@ -1,5 +1,8 @@
 {
     "require": {
         "google/apiclient": "^2.0"
+    },
+    "conflict": {
+        "guzzlehttp/guzzle": "<7.0"
     }
 }
