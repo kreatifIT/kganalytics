@@ -1,5 +1,8 @@
 {
     "require": {
-        "google/analytics-data": "^0.4.0"
+        "google/analytics-data": "^0.4.0",
+    },
+    "conflict": {
+        "guzzlehttp/guzzle": "<7.0"
     }
 }
