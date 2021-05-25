@@ -17,7 +17,7 @@ class ReportingTest
 
     public static function start()
     {
-        if (rex_get('action', 'string') == 'report') {
+        if (rex_get('action', 'string') == 'ga-report') {
             $client     = \Kreatif\kganalytics\DataClient::factory();
             $propertyId = \Kreatif\kganalytics\Settings::getValue('property_id');
 
@@ -27,7 +27,7 @@ class ReportingTest
                     'dateRanges'      => [
                         new V1beta\DateRange(
                             [
-                                'start_date' => date('Y-m-d', strtotime('-1 days')),
+                                'start_date' => date('Y-m-d', strtotime('-5 days')),
                                 'end_date'   => 'today',
                             ]
                         ),

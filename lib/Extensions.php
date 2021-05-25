@@ -18,8 +18,8 @@ class Extensions
     public static function init()
     {
         if (\rex::isFrontend()) {
-            \rex_extension::register('PACKAGES_INCLUDED', [self::class, 'start']);
-        } else {
+            \rex_extension::register('OUTPUT_FILTER', [self::class, 'filterOutput']);
+        } elseif (\rex::getUser()) {
             $addon = \rex_addon::get('kganalytics');
 
             if ($addon->getProperty('compile') == 1) {
@@ -31,11 +31,27 @@ class Extensions
                 \rex_file::copy($cssFilePath, $addon->getAssetsPath('css/backend.css'));
             }
             \rex_view::addCssFile($addon->getAssetsUrl('css/backend.css'));
+
+            \rex_extension::register('PACKAGES_INCLUDED', [self::class, 'start']);
         }
     }
 
     public static function start()
     {
         \ReportingTest::start();
+    }
+
+    public static function filterOutput(\rex_extension_point $ep): void
+    {
+        $tracking = Tracking::factory();
+
+        if ($scriptTag = $tracking->getScriptTag()) {
+            if (\rex_request::isPJAXRequest()) {
+                $output = $ep->getSubject() . $scriptTag;
+            } else {
+                $output = str_replace('</body>', $scriptTag . '</body>', $ep->getSubject());
+            }
+            $ep->setSubject($output);
+        }
     }
 }
