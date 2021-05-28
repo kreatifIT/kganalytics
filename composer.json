@@ -4,5 +4,9 @@
     },
     "conflict": {
         "guzzlehttp/guzzle": "<7.0"
+    },
+    "support": {
+        "source": "https://github.com/googleapis/php-analytics-data",
+        "docs": "http://googleapis.github.io/google-cloud-php/#/docs/analytics-data/v0.4.0/analyticsdata/readme"
     }
 }

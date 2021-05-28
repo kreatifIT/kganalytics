@@ -18,6 +18,7 @@ class Extensions
     public static function init()
     {
         if (\rex::isFrontend()) {
+            \rex_extension::register('PACKAGES_INCLUDED', [Tracking::class, 'ext__init'], \rex_extension::EARLY);
             \rex_extension::register('OUTPUT_FILTER', [self::class, 'filterOutput']);
         } elseif (\rex::getUser()) {
             $addon = \rex_addon::get('kganalytics');
@@ -51,6 +52,7 @@ class Extensions
             } else {
                 $output = str_replace('</body>', $scriptTag . '</body>', $ep->getSubject());
             }
+            $tracking->saveDelayedEvents();
             $ep->setSubject($output);
         }
     }
