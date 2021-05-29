@@ -17,16 +17,19 @@ use rex_addon;
 use rex_login;
 use rex_path;
 use rex_request;
+use Whoops\Exception\ErrorException;
 
 
 class Tracking
 {
-    const EVENT_LOGIN     = 'login';
-    const EVENT_LEAD      = 'generate_lead';
-    const EVENT_PAGEVIEW  = 'page_view';
-    const EVENT_SEARCH    = 'search';
-    const EVENT_SIGNUP    = 'sign_up';
-    const EVENT_USERPROPS = 'user_properties';
+    const EVENT_ADD_TO_CART    = 'add_to_cart';
+    const EVENT_LOGIN          = 'login';
+    const EVENT_LEAD           = 'generate_lead';
+    const EVENT_PAGEVIEW       = 'page_view';
+    const EVENT_SEARCH         = 'search';
+    const EVENT_SEARCH_RESULTS = 'view_search_results';
+    const EVENT_SIGNUP         = 'sign_up';
+    const EVENT_USERPROPS      = 'user_properties';
 
     const CUSTOM_EVENT_VISIT = 'visit';
 
@@ -152,14 +155,15 @@ class Tracking
         string $delayKey = '_default'
     ): void {
         $eventNames = rex::getProperty('kreatif.analytics.uq_event_names', []);
+        $eventKey   = array_key_exists($eventName, $eventNames) ? $eventNames[$eventName] : false;
 
-        if ($eventKey = $eventNames [$eventName]) {
-            $event = $this->events[$eventKey];
-        } else {
+        if (false === $eventKey) {
             $eventKey               = count($this->events);
             $event                  = new Event($eventName);
             $eventNames[$eventName] = $eventKey;
             rex::setProperty('kreatif.analytics.uq_event_names', $eventNames);
+        } else {
+            $event = $this->events[$eventKey];
         }
         if ($delayKey != '') {
             $event->setDelayKey($delayKey);
@@ -185,6 +189,21 @@ class Tracking
     {
         $properties['search_term'] = $searchTerm;
         $this->addEvent(self::EVENT_SEARCH, $properties);
+    }
+
+    public function addSearchResults(string $searchTerm = null, array $items = [], array $properties = []): void
+    {
+        if ($searchTerm) {
+            $properties['search_term'] = $searchTerm;
+        }
+
+        foreach ($items as $item) {
+            if (!($item instanceof SearchItem)) {
+                throw new TrackingException('item must be instance of SearchItem', 2);
+            }
+            $properties['items'][] = $item->getEventProperties();
+        }
+        $this->addEvent(self::EVENT_SEARCH_RESULTS, $properties);
     }
 
     public function addRegistration(string $method = 'custom'): void
@@ -224,6 +243,22 @@ class Tracking
         $this->addEvent(self::EVENT_LEAD, $properties);
     }
 
+    public function addItemsToCart(array $items, array $properties = []): void
+    {
+        $sum        = 0;
+        $properties = array_merge(['currency' => 'EUR'], $properties);
+
+        foreach ($items as $item) {
+            if (!($item instanceof CartItem)) {
+                throw new TrackingException('item must be instance of CartItem', 1);
+            }
+            $sum                   += $item->getPrice();
+            $properties['items'][] = $item->getEventProperties();
+        }
+        $properties['value'] = $sum;
+        $this->addEvent(self::EVENT_ADD_TO_CART, $properties);
+    }
+
     public function saveDelayedEvents($params)
     {
         $collection = $this->getDelayedEvents();
@@ -247,4 +282,9 @@ class Tracking
             self::debugLog("-------- END ---------\n\n");
         }
     }
+}
+
+
+class TrackingException extends ErrorException
+{
 }
