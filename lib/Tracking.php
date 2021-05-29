@@ -169,9 +169,12 @@ class Tracking
         if ($delayKey != '') {
             $event->setDelayKey($delayKey);
         }
-        self::debugLog("+ add event '{$eventName}' with delayKey = {$delayKey}");
+        if (!array_key_exists(self::DIMENSION_PAGING_PAGE, $properties)) {
+            $properties[self::DIMENSION_PAGING_PAGE] = 0;
+        }
         $event->addProperties($properties);
         $this->events[$eventKey] = $event;
+        self::debugLog("+ add event '{$eventName}' with delayKey = {$delayKey}");
     }
 
     public function addUserProperties(array $properties = []): void
