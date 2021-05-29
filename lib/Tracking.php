@@ -33,6 +33,7 @@ class Tracking
 
     const CUSTOM_EVENT_VISIT = 'visit';
 
+    const DIMENSION_PAGING_PAGE     = 'visit_paging_page';
     const DIMENSION_VISIT_TIMESTAMP = 'visit_timestamp';
 
     const DEBUG_LOG_FILENAME = 'ga-tracking.log';
