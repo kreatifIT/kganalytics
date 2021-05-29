@@ -12,6 +12,13 @@
 namespace Kreatif\kganalytics;
 
 
+use rex;
+use rex_addon;
+use rex_login;
+use rex_path;
+use rex_request;
+
+
 class Tracking
 {
     const EVENT_LOGIN     = 'login';
@@ -25,6 +32,8 @@ class Tracking
 
     const DIMENSION_VISIT_TIMESTAMP = 'visit_timestamp';
 
+    const DEBUG_LOG_FILENAME = 'ga-tracking.log';
+
 
     public static $debug = false;
 
@@ -33,25 +42,51 @@ class Tracking
 
     public final static function factory(): Tracking
     {
-        $_this       = \rex::getProperty('kreatif.analytics.tracking');
-        self::$debug = \rex_addon::get('project')->getProperty('compile') == 1;
+        rex_login::startSession();
+        self::debugLog('Tracking::factory call');
+
+        if (PHP_SESSION_ACTIVE == session_status()) {
+            if ($tracking = rex_session('kreatif.analytics.delayed_tracking')) {
+                self::debugLog('recover instance from session');
+                rex_unset_session('kreatif.analytics.delayed_tracking');
+                $tracking->start();
+            }
+        }
+
+        $_this = rex::getProperty('kreatif.analytics.tracking');
 
         if (!$_this) {
+            self::debugLog('instantiate Tracking');
             $caller = get_called_class();
             $_this  = new $caller();
-            \rex::setProperty('kreatif.analytics.tracking', $_this);
-            register_shutdown_function([$_this, 'saveDelayedEvents']);
+            $_this->start();
         }
         return $_this;
+    }
+
+    private function start()
+    {
+        register_shutdown_function([$this, 'saveDelayedEvents'], ['caller' => 'shutdown']);
+        $this->events = array_values($this->events);
+        self::$debug  = rex_addon::get('project')->getProperty('compile') == 1;
+        self::$debug  = self::$debug || rex_addon::get('kganalytics')->getProperty('debug') == 1;
+        rex::setProperty('kreatif.analytics.tracking', $this);
+    }
+
+    public static function debugLog($content)
+    {
+        if (rex_addon::get('kganalytics')->getProperty('debug') == 1) {
+            rex::setProperty('kreatif.analytics.debug_log_written', true);
+            $filePath = rex_path::base(self::DEBUG_LOG_FILENAME);
+            file_put_contents($filePath, "{$content}\n", FILE_APPEND);
+        }
     }
 
     public final function getScriptTag(): string
     {
         $result  = '';
         $events  = $this->getEventsToProcess();
-        $tagName = \rex_request::isPJAXRequest() ? 'pjax-script' : 'script';
-
-        file_put_contents(\rex_path::base('tracking.log'), "log\n", FILE_APPEND);
+        $tagName = rex_request::isPJAXRequest() ? 'pjax-script' : 'script';
 
         if (count($events)) {
             $initEvent = 'window.dataLayer = window.dataLayer || [];';
@@ -105,17 +140,6 @@ class Tracking
         return $events;
     }
 
-    private function getEventsByDelayKey(string $delayKey, $excludeProcessed = true): array
-    {
-        $events = [];
-        foreach ($this->events as $event) {
-            if ($delayKey == $event->getDelayKey() && (!$excludeProcessed || !$event->isProcessed())) {
-                $events[] = $event;
-            }
-        }
-        return $events;
-    }
-
     public function addDelayKeyToProcess(string $delayKey): void
     {
         $this->delayKeys[] = $delayKey;
@@ -125,45 +149,47 @@ class Tracking
     public function addEvent(
         string $eventName,
         array $properties = [],
-        bool $isUnique = true,
         string $delayKey = '_default'
     ): void {
-        if ($isUnique && isset($this->events[$eventName])) {
-            $key   = $eventName;
-            $event = $this->events[$eventName];
+        $eventNames = rex::getProperty('kreatif.analytics.uq_event_names', []);
+
+        if ($eventKey = $eventNames [$eventName]) {
+            $event = $this->events[$eventKey];
         } else {
-            $key   = $isUnique ? $eventName : count($this->events);
-            $event = new Event($eventName, $key);
+            $eventKey               = count($this->events);
+            $event                  = new Event($eventName);
+            $eventNames[$eventName] = $eventKey;
+            rex::setProperty('kreatif.analytics.uq_event_names', $eventNames);
         }
         if ($delayKey != '') {
             $event->setDelayKey($delayKey);
         }
-        file_put_contents(\rex_path::base('tracking.log'), "event: " . $event->isProcessed() . "\n", FILE_APPEND);
+        self::debugLog("+ add event '{$eventName}' with delayKey = {$delayKey}");
         $event->addProperties($properties);
-        $this->events[$key] = $event;
+        $this->events[$eventKey] = $event;
     }
 
     public function addUserProperties(array $properties = []): void
     {
-        $this->addEvent(self::EVENT_USERPROPS, $properties, true);
+        $this->addEvent(self::EVENT_USERPROPS, $properties);
     }
 
     public function addPageView(array $properties = [], string $delayVisitWithKey = ''): void
     {
-        $this->addEvent(self::EVENT_PAGEVIEW, $properties, true);
+        $this->addEvent(self::EVENT_PAGEVIEW, $properties);
         $properties[self::DIMENSION_VISIT_TIMESTAMP] = time();
-        $this->addEvent(self::CUSTOM_EVENT_VISIT, $properties, false, $delayVisitWithKey);
+        $this->addEvent(self::CUSTOM_EVENT_VISIT, $properties, $delayVisitWithKey);
     }
 
     public function addSearch(string $searchTerm, array $properties = []): void
     {
         $properties['search_term'] = $searchTerm;
-        $this->addEvent(self::EVENT_SEARCH, $properties, false);
+        $this->addEvent(self::EVENT_SEARCH, $properties);
     }
 
     public function addRegistration(string $method = 'custom'): void
     {
-        $this->addEvent(self::EVENT_SIGNUP, ['method' => $method], true);
+        $this->addEvent(self::EVENT_SIGNUP, ['method' => $method]);
     }
 
     public function addLogin(string $method = 'custom'): void
@@ -173,8 +199,7 @@ class Tracking
             [
                 'method'  => $method,
                 'success' => true,
-            ],
-            true
+            ]
         );
     }
 
@@ -185,8 +210,7 @@ class Tracking
             [
                 'method'  => $method,
                 'success' => false,
-            ],
-            true
+            ]
         );
     }
 
@@ -197,10 +221,10 @@ class Tracking
         if ($price !== null) {
             $properties['value'] = $price;
         }
-        $this->addEvent(self::EVENT_LEAD, $properties, false);
+        $this->addEvent(self::EVENT_LEAD, $properties);
     }
 
-    public function saveDelayedEvents()
+    public function saveDelayedEvents($params)
     {
         $collection = $this->getDelayedEvents();
 
@@ -208,28 +232,19 @@ class Tracking
             foreach ((array)$collection['_default'] as $event) {
                 $event->setDelayKey('_overdue');
             }
-            foreach ($this->events as $index => $event) {
-                if ($event->isProcessed()) {
-                    unset($this->events[$index]);
+            $_events = [];
+            foreach ($this->events as $event) {
+                if (!$event->isProcessed()) {
+                    $_events[] = $event;
                 }
             }
-            rex_set_session('kreatif.analytics.tracking', $this);
+            $this->events = $_events;
+            self::debugLog('requested uri = ' . rex_server('REQUEST_URI', 'string'));
+            self::debugLog("save remaining events to session; caller = {$params['caller']}");
+            rex_set_session('kreatif.analytics.delayed_tracking', $this);
         }
-    }
-
-    public static function ext__init(\rex_extension_point $ep): void
-    {
-        \rex_login::startSession();
-
-        if (PHP_SESSION_ACTIVE == session_status()) {
-            $tracking = rex_session('kreatif.analytics.tracking');
-
-            if ($tracking) {
-                rex_unset_session('kreatif.analytics.tracking');
-                \rex::setProperty('kreatif.analytics.tracking', $tracking);
-                register_shutdown_function([$tracking, 'saveDelayedEvents']);
-                $tracking::factory();
-            }
+        if ('shutdown' == $params['caller'] && rex::getProperty('kreatif.analytics.debug_log_written', false)) {
+            self::debugLog("-------- END ---------\n\n");
         }
     }
 }

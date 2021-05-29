@@ -11,6 +11,7 @@
 
 namespace Kreatif\kganalytics;
 
+use rex_path;
 use Google\Analytics\Data\V1beta;
 
 
@@ -18,7 +19,7 @@ class DataClient
 {
     public static function factory()
     {
-        require_once \rex_path::addon('kganalytics', 'vendor/autoload.php');
+        require_once rex_path::addon('kganalytics', 'vendor/autoload.php');
 
         $client = new V1beta\BetaAnalyticsDataClient(
             [
