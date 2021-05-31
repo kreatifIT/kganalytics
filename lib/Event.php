@@ -16,15 +16,15 @@ namespace Kreatif\kganalytics;
 
 class Event
 {
-    private $eventName;
-    private $isProcessed = false;
-    private $delayKey    = '_default';
-    private $properties  = [];
+    private string $eventName;
+    private bool   $isProcessed = false;
+    private string $delayKey    = '_default';
+    private array  $properties  = [];
 
 
     public function __construct(string $eventName)
     {
-        $this->eventName     = $eventName;
+        $this->eventName = $eventName;
     }
 
     public function addProperties(array $properties): void
@@ -65,9 +65,9 @@ class Event
 
         if (Tracking::$debug) {
             $jsonData = json_encode($properties);
-            $result   .= "console.log('kreatif.analytics.tracking: {$this->eventName}; " . $jsonData . "');";
+            $result   .= "console.log('kreatif.analytics.tracking: $this->eventName; $jsonData');";
         }
-        Tracking::debugLog("- processing event '{$this->eventName}' with delayKey = {$this->delayKey}");
+        Tracking::debugLog("- processing event '$this->eventName' with delayKey = $this->delayKey");
         $this->isProcessed = true;
         return $result;
     }

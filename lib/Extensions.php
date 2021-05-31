@@ -12,6 +12,7 @@
 namespace Kreatif\kganalytics;
 
 
+use ReportingTest;
 use rex;
 use rex_addon;
 use rex_extension;
@@ -48,7 +49,7 @@ class Extensions
 
     public static function start()
     {
-        \ReportingTest::start();
+        ReportingTest::start();
     }
 
     public static function enrichOutput(rex_extension_point $ep): void

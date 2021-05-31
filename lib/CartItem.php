@@ -16,11 +16,11 @@ namespace Kreatif\kganalytics;
 
 class CartItem
 {
-    protected $id;
-    protected $name;
-    protected $properties;
-    protected $price    = null;
-    protected $quantity = null;
+    protected string $id;
+    protected string $name;
+    protected array  $properties;
+    protected ?float $price    = null;
+    protected ?int   $quantity = null;
 
     public function __construct(string $id, string $name, array $properties = [])
     {
@@ -40,10 +40,10 @@ class CartItem
 
     public function getEventProperties()
     {
-        $this->properties['id']       = $this->id;
-        $this->properties['name']     = $this->name;
-        $this->properties['price']    = $this->price;
-        $this->properties['quantity'] = $this->quantity;
+        $this->properties['item_id']   = $this->id;
+        $this->properties['item_name'] = $this->name;
+        $this->properties['price']     = $this->price;
+        $this->properties['quantity']  = $this->quantity;
         return $this->properties;
     }
 

@@ -27,7 +27,7 @@ class Tracking
     const EVENT_LEAD           = 'generate_lead';
     const EVENT_PAGEVIEW       = 'page_view';
     const EVENT_SEARCH         = 'search';
-    const EVENT_SEARCH_RESULTS = 'view_search_results';
+    const EVENT_SEARCH_RESULTS = 'view_item_list';
     const EVENT_SIGNUP         = 'sign_up';
     const EVENT_USERPROPS      = 'user_properties';
 
@@ -39,10 +39,10 @@ class Tracking
     const DEBUG_LOG_FILENAME = 'ga-tracking.log';
 
 
-    public static $debug = false;
+    public static bool $debug = false;
 
-    private $events    = [];
-    private $delayKeys = ['_overdue', '_default'];
+    private array $events    = [];
+    private array $delayKeys = ['_overdue', '_default'];
 
     public final static function factory(): Tracking
     {
@@ -68,7 +68,7 @@ class Tracking
         return $_this;
     }
 
-    private function start()
+    protected function start()
     {
         register_shutdown_function([$this, 'saveDelayedEvents'], ['caller' => 'shutdown']);
         $this->events = array_values($this->events);
@@ -82,7 +82,7 @@ class Tracking
         if (rex_addon::get('kganalytics')->getProperty('debug') == 1) {
             rex::setProperty('kreatif.analytics.debug_log_written', true);
             $filePath = rex_path::base(self::DEBUG_LOG_FILENAME);
-            file_put_contents($filePath, "{$content}\n", FILE_APPEND);
+            file_put_contents($filePath, "$content\n", FILE_APPEND);
         }
     }
 
@@ -106,15 +106,15 @@ class Tracking
                 $initEvent .= "\nconsole.log('Delayed Event Count:');";
                 $initEvent .= "\nconsole.log(" . json_encode($delayData) . ");";
             }
-            $result = "<{$tagName}>\n" . $initEvent . "\n" . $pushs . "\n</{$tagName}>";
-        } elseif (self::$debug) {
+            $result = "<$tagName>\n" . $initEvent . "\n" . $pushs . "\n</$tagName>";
+        } else if (self::$debug) {
             $delayData = [];
             foreach ($this->getDelayedEvents() as $delayKey => $_events) {
                 $delayData[$delayKey] = count($_events);
             }
             $initEvent = "\nconsole.log('Delayed Event Count:');";
             $initEvent .= "\nconsole.log(" . json_encode($delayData) . ");";
-            $result    = "<{$tagName}>\n" . $initEvent . "\n" . "console.log('No Tracking [kreatif.analytics]');</{$tagName}>";
+            $result    = "<$tagName>\n" . $initEvent . "\n" . "console.log('No Tracking [kreatif.analytics]');</$tagName>";
         }
         return $result;
     }
@@ -174,7 +174,7 @@ class Tracking
         }
         $event->addProperties($properties);
         $this->events[$eventKey] = $event;
-        self::debugLog("+ add event '{$eventName}' with delayKey = {$delayKey}");
+        self::debugLog("+ add event '$eventName' with delayKey = $delayKey");
     }
 
     public function addUserProperties(array $properties = []): void
@@ -195,12 +195,8 @@ class Tracking
         $this->addEvent(self::EVENT_SEARCH, $properties);
     }
 
-    public function addSearchResults(string $searchTerm = null, array $items = [], array $properties = []): void
+    public function addViewItemList(array $items = [], array $properties = []): void
     {
-        if ($searchTerm) {
-            $properties['search_term'] = $searchTerm;
-        }
-
         foreach ($items as $item) {
             if (!($item instanceof SearchItem)) {
                 throw new TrackingException('item must be instance of SearchItem', 2);
@@ -217,24 +213,18 @@ class Tracking
 
     public function addLogin(string $method = 'custom'): void
     {
-        $this->addEvent(
-            self::EVENT_LOGIN,
-            [
+        $this->addEvent(self::EVENT_LOGIN, [
                 'method'  => $method,
                 'success' => true,
-            ]
-        );
+            ]);
     }
 
     public function addFailedLogin(string $method = 'custom'): void
     {
-        $this->addEvent(
-            self::EVENT_LOGIN,
-            [
+        $this->addEvent(self::EVENT_LOGIN, [
                 'method'  => $method,
                 'success' => false,
-            ]
-        );
+            ]);
     }
 
     public function addLead(float $price = null, array $properties = []): void
