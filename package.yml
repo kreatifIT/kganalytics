@@ -1,5 +1,5 @@
 package: kganalytics
-version: '1.2.3'
+version: '1.2.4'
 author: 'Kreatif'
 debug: 0
 compile: 0

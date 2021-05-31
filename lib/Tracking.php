@@ -33,7 +33,7 @@ class Tracking
 
     const CUSTOM_EVENT_VISIT = 'visit';
 
-    const DIMENSION_PAGING_PAGE     = 'visit_paging_page';
+    const DIMENSION_PAGING_INDEX    = 'visit_paging_index';
     const DIMENSION_VISIT_TIMESTAMP = 'visit_timestamp';
 
     const DEBUG_LOG_FILENAME = 'ga-tracking.log';
@@ -169,8 +169,8 @@ class Tracking
         if ($delayKey != '') {
             $event->setDelayKey($delayKey);
         }
-        if (!array_key_exists(self::DIMENSION_PAGING_PAGE, $properties)) {
-            $properties[self::DIMENSION_PAGING_PAGE] = 0;
+        if (!array_key_exists(self::DIMENSION_PAGING_INDEX, $properties)) {
+            $properties[self::DIMENSION_PAGING_INDEX] = 0;
         }
         $event->addProperties($properties);
         $this->events[$eventKey] = $event;
@@ -214,17 +214,17 @@ class Tracking
     public function addLogin(string $method = 'custom'): void
     {
         $this->addEvent(self::EVENT_LOGIN, [
-                'method'  => $method,
-                'success' => true,
-            ]);
+            'method'  => $method,
+            'success' => true,
+        ]);
     }
 
     public function addFailedLogin(string $method = 'custom'): void
     {
         $this->addEvent(self::EVENT_LOGIN, [
-                'method'  => $method,
-                'success' => false,
-            ]);
+            'method'  => $method,
+            'success' => false,
+        ]);
     }
 
     public function addLead(float $price = null, array $properties = []): void
