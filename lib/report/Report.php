@@ -15,18 +15,29 @@ namespace Kreatif\kganalytics;
 
 
 use Google\Analytics\Data\V1beta\BatchRunReportsResponse;
+use Google\Analytics\Data\V1beta\BetaAnalyticsDataClient;
 use Google\Analytics\Data\V1beta\DateRange;
+use Google\Analytics\Data\V1beta\RunReportResponse;
+use Kreatif\Helpers\Log;
 
 
 class Report
 {
-    protected $client;
-    protected $propertyId;
-    protected $dateRange;
-    protected $debug    = false;
-    protected $chunks   = [];
-    protected $requests = [];
-    protected $results  = [];
+    const MAX_REQUESTS_PER_REPORT = 5;
+    const MAX_REQUESTS_PER_MINUTE = 600;
+
+
+    protected BetaAnalyticsDataClient $client;
+    protected DateRange               $dateRange;
+    protected string                  $propertyId;
+    protected int                     $requestStartTS;
+    protected int                     $doneRequestCount = 0;
+    protected int                     $maxExecSeconds   = 15;
+    protected bool                    $debug            = false;
+    protected array                   $chunks           = [];
+    protected array                   $requests         = [];
+    protected array                   $results          = [];
+
 
     public static function create(DateRange $dateRange)
     {
@@ -35,31 +46,45 @@ class Report
         $_this->dateRange  = $dateRange;
         $_this->client     = DataClient::factory();
         $_this->propertyId = Settings::getValue('property_id');
+
+        Log::catchThrowables();
         return $_this;
     }
 
     public function appendRequest(ReportRequest $request): void
     {
-        $this->requests[] = $request;
+        $className = get_class($request);
+        if (!isset($this->requests[$className])) {
+            $this->requests[$className] = $request;
+        }
     }
 
     public function batchRunReports(): Result
     {
+        ini_set('max_execution_time', $this->maxExecSeconds);
+
+        $this->requestStartTS = microtime();
         $this->prepareChunks();
 
         foreach ($this->chunks as $chunk) {
-            $response = $this->client->batchRunReports(
-                [
-                    'property' => 'properties/' . $this->propertyId,
-                    'requests' => $chunk->getRequests(),
-                ]
-            );
-
-            // todo: paging handlen
-
-            $this->parseAnalyticsResponse($response, $chunk);
+            $this->processChunk($chunk);
         }
-        return Result::factory();
+        return Result::getReportResult();
+    }
+
+    private function processChunk(ReportRequestChunk $chunk)
+    {
+        $this->doneRequestCount += $chunk->getCount();
+
+        $response = $this->client->batchRunReports(
+            [
+                'property' => 'properties/' . $this->propertyId,
+                'requests' => $chunk->getRequests(),
+            ]
+        );
+
+        $this->parseAnalyticsResponse($response, $chunk);
+        $this->handleQuotaTiming();
     }
 
     private function prepareChunks()
@@ -68,9 +93,9 @@ class Report
         $this->chunks[] = $chunk;
         $counter        = 0;
 
-        foreach ($this->requests as $index => $request) {
+        foreach ($this->requests as $request) {
             // split requests into chunks to 5 entries
-            if (5 == $counter) {
+            if (self::MAX_REQUESTS_PER_REPORT == $counter) {
                 $counter        = 0;
                 $chunk          = new ReportRequestChunk();
                 $this->chunks[] = $chunk;
@@ -86,15 +111,41 @@ class Report
         }
     }
 
+    private function handleQuotaTiming()
+    {
+        $elapsedTime = microtime() - $this->requestStartTS;
+
+        if ($elapsedTime > 50000 || $this->doneRequestCount > (self::MAX_REQUESTS_PER_MINUTE - self::MAX_REQUESTS_PER_REPORT)) {
+            // if we are getting to limit the per-minute-quota lets sleep for a minute to bypass this limit
+            sleep(60);
+            $this->doneRequestCount = 0;
+            $this->requestStartTS   = microtime();
+        }
+    }
+
+    /**
+     * @param BatchRunReportsResponse $reportResponse
+     * @param ReportRequestChunk      $chunk
+     */
     protected function parseAnalyticsResponse(BatchRunReportsResponse $reportResponse, ReportRequestChunk $chunk): void
     {
+        $offsetChunk = new ReportRequestChunk();
+
         foreach ($reportResponse->getReports() as $reqIndex => $report) {
-            pr(
-                "RequestIndex #$reqIndex -> Row count = " . $report->getRowCount(),
-                'blue'
-            );
+            /**  @var RunReportResponse $report */
+            $request  = $chunk->getRequest($reqIndex);
             $response = $chunk->getResponseForIndex($reqIndex);
+            $offset   = $request->getReportOffset() + ReportRequest::REPORT_ROW_LIMIT;
             $response->processReport($report);
+
+            if ($report->getRowCount() > $offset) {
+                $request->setReportOffset($offset);
+                $offsetChunk->appendRequest($request);
+            }
+        }
+
+        if ($offsetChunk->getCount()) {
+            $this->processChunk($offsetChunk);
         }
     }
 }

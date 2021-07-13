@@ -19,6 +19,8 @@ use Google\Analytics\Data\V1beta\RunReportRequest;
 
 abstract class ReportRequest
 {
+    const REPORT_ROW_LIMIT = 100000; // this is given by google
+
     protected RunReportRequest $request;
     protected string           $name;
     protected string           $groupDimensionName;
@@ -29,6 +31,18 @@ abstract class ReportRequest
         $this->name               = $name;
         $this->groupDimensionName = $groupDimensionName;
         $this->request            = new RunReportRequest();
+        $this->request->setLimit(self::REPORT_ROW_LIMIT);
+        $this->setReportOffset(0);
+    }
+
+    public function setReportOffset(int $offset)
+    {
+        $this->request->setOffset($offset);
+    }
+
+    public function getReportOffset(): int
+    {
+        return $this->request->getOffset();
     }
 
     /**
@@ -69,5 +83,28 @@ abstract class ReportRequest
     public function setResponseClass(string $responseClass): void
     {
         $this->responseClass = $responseClass;
+    }
+
+    /**
+     * @param array $dimensions
+     */
+    public function appendDimensions(array $dimensions): void
+    {
+        $names = [];
+        $list  = $this->request->getDimensions();
+
+        foreach ($list as $dimension) {
+            $names[] = $dimension->getName();
+        }
+
+        foreach ($dimensions as $dimension) {
+            $name = $dimension->getName();
+
+            if (!in_array($name, $names)) {
+                $names[] = $name;
+                $list[]  = $dimension;
+            }
+        }
+        $this->request->setDimensions($list);
     }
 }

@@ -19,7 +19,7 @@ class Result
     protected $data = [];
 
 
-    public static function factory(): self
+    public static function getReportResult(): self
     {
         $inst = \rex::getProperty('kreatif.analytics.report.result');
 

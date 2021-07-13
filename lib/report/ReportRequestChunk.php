@@ -25,6 +25,16 @@ class ReportRequestChunk
         $this->requests[] = $request;
     }
 
+    public function getCount()
+    {
+        return count($this->requests);
+    }
+
+    public function getRequest(int $index): ReportRequest
+    {
+        return $this->requests[$index];
+    }
+
     public function getRequests(): array
     {
         $collection = [];

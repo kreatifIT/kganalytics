@@ -47,7 +47,7 @@ class ReportResponse
 
     protected function processRow(Row $row)
     {
-        $result        = Result::factory();
+        $result        = Result::getReportResult();
         $groupKeyValue = null;
 
         foreach ($row->getDimensionValues() as $index => $dimension) {
