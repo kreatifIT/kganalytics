@@ -19,6 +19,7 @@ use Google\Analytics\Data\V1beta\BetaAnalyticsDataClient;
 use Google\Analytics\Data\V1beta\DateRange;
 use Google\Analytics\Data\V1beta\RunReportResponse;
 use Kreatif\Helpers\Log;
+use rex;
 
 
 class Report
@@ -48,6 +49,7 @@ class Report
         $_this->propertyId = Settings::getValue('property_id');
 
         Log::catchThrowables();
+        rex::setProperty('kreatif.analytics.report.result', null);
         return $_this;
     }
 
