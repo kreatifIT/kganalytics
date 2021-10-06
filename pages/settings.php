@@ -21,10 +21,30 @@ if ($action == 'test-settings') {
 }
 
 
+$field = $form->addSelectField('debug', null, ["class" => "form-control"]);
+$field->setLabel('Debug-Modus');
+$select = $field->getSelect();
+$select->setSize(1);
+$select->addOptions([1 => 'aktiv', 0 => 'inaktiv']);
+
 $field = $form->addTextField('property_id', null, ["class" => "form-control"]);
 $field->setLabel('V4 Property-ID');
 $field->setNotice(
     'Find the ID on <a href="https://analytics.google.com/analytics/web/" target="_blank">https://analytics.google.com/analytics/web/</a>'
+);
+
+
+$field = $form->addTextField('measurement_api_secret', null, ["class" => "form-control"]);
+$field->setLabel('Measurement API Secret');
+$field->setNotice(
+    '<p>Create Secret going to: <b>Verwaltung</b> > <b>Datenstreams</b> > [Stream auswählen] > <b>Measurement Protocol - API-Secrets</b> > <b>Erstellen</b></p>
+<p>Help: <a href="https://developers.google.com/analytics/devguides/collection/protocol/ga4" target="_blank">https://developers.google.com/analytics/devguides/collection/protocol/ga4</a></p>'
+);
+
+$field = $form->addTextField('measurement_id', null, ["class" => "form-control"]);
+$field->setLabel('Measurement ID');
+$field->setNotice(
+    '<p>Get ID: <b>Verwaltung</b> > <b>Datenstreams</b> > [Stream auswählen] > <b>MESS-ID</b></p>'
 );
 
 $field = $form->addTextAreaField(
@@ -50,8 +70,8 @@ $field->setNotice(
 $formOutput = $form->get();
 
 $button = [
-    'label'      => 'Test settings',
-    'url'        => rex_url::currentBackendPage(['action' => 'test-settings']),
+    'label' => 'Test settings',
+    'url' => rex_url::currentBackendPage(['action' => 'test-settings']),
     'attributes' => ['class' => ['btn', 'btn-primary']],
 ];
 if (\Kreatif\kganalytics\Settings::getValue('property_id') == '') {

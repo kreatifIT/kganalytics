@@ -12,6 +12,9 @@
 namespace Kreatif\kganalytics;
 
 
+use GuzzleHttp\Client;
+use GuzzleHttp\Psr7\Query;
+use GuzzleHttp\Psr7\Request;
 use rex;
 use rex_addon;
 use rex_login;
@@ -29,6 +32,7 @@ class Tracking
     const EVENT_SEARCH         = 'search';
     const EVENT_SEARCH_RESULTS = 'view_item_list';
     const EVENT_SIGNUP         = 'sign_up';
+    const EVENT_GENERAL        = 'general';
     const EVENT_USERPROPS      = 'user_properties';
 
     const CUSTOM_EVENT_VISIT = 'visit';
@@ -38,11 +42,16 @@ class Tracking
 
     const DEBUG_LOG_FILENAME = 'ga-tracking.log';
 
+    const MEASUREMENT_URL            = 'https://www.google-analytics.com/mp/collect';
+    const MEASUREMENT_VALIDATION_URL = 'https://www.google-analytics.com/debug/mp/collect';
+
 
     public static bool $debug = false;
 
     private array $events    = [];
     private array $delayKeys = ['_overdue', '_default'];
+
+    private function __construct() { }
 
     public final static function factory(): Tracking
     {
@@ -72,8 +81,7 @@ class Tracking
     {
         register_shutdown_function([$this, 'saveDelayedEvents'], ['caller' => 'shutdown']);
         $this->events = array_values($this->events);
-        self::$debug  = rex_addon::get('project')->getProperty('compile') == 1;
-        self::$debug  = self::$debug || rex_addon::get('kganalytics')->getProperty('debug') == 1;
+        self::$debug  = Settings::getValue('debug');
         rex::setProperty('kreatif.analytics.tracking', $this);
     }
 
@@ -107,7 +115,7 @@ class Tracking
                 $initEvent .= "\nconsole.log(" . json_encode($delayData) . ");";
             }
             $result = "<$tagName>\n" . $initEvent . "\n" . $pushs . "\n</$tagName>";
-        } else if (self::$debug) {
+        } elseif (self::$debug) {
             $delayData = [];
             foreach ($this->getDelayedEvents() as $delayKey => $_events) {
                 $delayData[$delayKey] = count($_events);
@@ -213,18 +221,24 @@ class Tracking
 
     public function addLogin(string $method = 'custom'): void
     {
-        $this->addEvent(self::EVENT_LOGIN, [
-            'method'  => $method,
-            'success' => true,
-        ]);
+        $this->addEvent(
+            self::EVENT_LOGIN,
+            [
+                'method'  => $method,
+                'success' => true,
+            ]
+        );
     }
 
     public function addFailedLogin(string $method = 'custom'): void
     {
-        $this->addEvent(self::EVENT_LOGIN, [
-            'method'  => $method,
-            'success' => false,
-        ]);
+        $this->addEvent(
+            self::EVENT_LOGIN,
+            [
+                'method'  => $method,
+                'success' => false,
+            ]
+        );
     }
 
     public function addLead(float $price = null, array $properties = []): void
@@ -235,6 +249,20 @@ class Tracking
             $properties['value'] = $price;
         }
         $this->addEvent(self::EVENT_LEAD, $properties);
+    }
+
+    public function addReferer(string $referer, array $properties = []): void
+    {
+        $host       = parse_url($referer, PHP_URL_HOST);
+        $properties = array_merge(
+            [
+                'category' => 'referer',
+                'host'     => $host,
+                'uri'      => $referer,
+            ],
+            $properties
+        );
+        $this->addEvent(self::EVENT_GENERAL, $properties);
     }
 
     public function addItemsToCart(array $items, array $properties = []): void
@@ -275,6 +303,55 @@ class Tracking
         if ('shutdown' == $params['caller'] && rex::getProperty('kreatif.analytics.debug_log_written', false)) {
             self::debugLog("-------- END ---------\n\n");
         }
+    }
+
+    public function sendEventsViaMeasurementProtocol()
+    {
+        $events = $this->getEventsForMeasurementProtocol();
+
+        if (count($events)) {
+            $queryParams = Query::build(
+                [
+                    'measurement_id' => Settings::getValue('measurement_id'),
+                    'api_secret'     => Settings::getValue('measurement_api_secret'),
+                ]
+            );
+            $bodyParams  = [
+                'json' => [
+                    'client_id' => 'kganalytics',
+                    'events'     => $events,
+                ],
+            ];
+
+            if (self::$debug) {
+                $client    = new Client();
+                $request   = new Request('POST', self::MEASUREMENT_VALIDATION_URL . "?{$queryParams}");
+                $response  = $client->send($request, $bodyParams);
+                $_response = \GuzzleHttp\json_decode($response->getBody()->getContents(), true);
+
+                $errors = [];
+                foreach ($_response['validationMessages'] as $error) {
+                    $errors[] = "{$error['validationCode']}: {$error['description']}";
+                }
+                if (count($errors)) {
+                    throw new TrackingException(implode("\n", $errors));
+                }
+            }
+
+            $client  = new Client();
+            $request = new Request('POST', self::MEASUREMENT_URL . "?{$queryParams}");
+            $client->send($request, $bodyParams);
+        }
+    }
+
+    private function getEventsForMeasurementProtocol(): array
+    {
+        $result = [];
+        /** @var Event $event */
+        foreach ($this->getEventsToProcess() as $event) {
+            $result[] = $event->getAsMeasurementObject();
+        }
+        return $result;
     }
 }
 

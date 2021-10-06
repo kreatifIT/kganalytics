@@ -57,6 +57,14 @@ class Event
         return $this->isProcessed;
     }
 
+    public function getAsMeasurementObject()
+    {
+        return [
+            'name'   => $this->eventName,
+            'params' => $this->properties,
+        ];
+    }
+
     public function __toString(): string
     {
         $result     = '';
