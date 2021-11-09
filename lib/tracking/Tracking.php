@@ -37,6 +37,7 @@ class Tracking
 
     const CUSTOM_EVENT_VISIT = 'visit';
 
+    const USER_DIMENSION_REDAXO_ID  = 'redaxo_id';
     const DIMENSION_PAGING_INDEX    = 'visit_paging_index';
     const DIMENSION_VISIT_TIMESTAMP = 'visit_timestamp';
 
@@ -48,8 +49,9 @@ class Tracking
 
     public static bool $debug = false;
 
-    private array $events    = [];
-    private array $delayKeys = ['_overdue', '_default'];
+    private array $events         = [];
+    private array $userProperties = [];
+    private array $delayKeys      = ['_overdue', '_default'];
 
     private function __construct() { }
 
@@ -94,16 +96,48 @@ class Tracking
         }
     }
 
+    public static function getClientId(): ?string
+    {
+        return rex_session('kganalytics/Tracking.clientId', 'string', null);
+    }
+
+    public static function setClientId(string $clientId): void
+    {
+        rex_set_session('kganalytics/Tracking.clientId', $clientId);
+    }
+
+    public static function getUserId(): ?string
+    {
+        return rex_session('kganalytics/Tracking.userId', 'string', null);
+    }
+
+    public static function setUserId(string $userId): void
+    {
+        rex_set_session('kganalytics/Tracking.userId', $userId);
+    }
+
     public final function getScriptTag(): string
     {
         $result  = '';
         $events  = $this->getEventsToProcess();
-        $tagName = rex_request::isPJAXRequest() ? 'pjax-script' : 'script';
+        $tagName = rex_request::isPJAXRequest() ? 'pjax-script' : 'script ' . \Kreatif\Cookie::getIubendaAttributes('2,3,4,5');
 
-        if (count($events)) {
+        if (Settings::getValue('push_from_server')) {
+            $initEvent = "console.log('Events are pushed server-side');";
+            $pushs     = [];
+        } else {
             $initEvent = 'window.dataLayer = window.dataLayer || [];';
             $pushs     = implode("\n", $events);
+        }
 
+        if ($userId = self::getUserId()) {
+            $messId    = Settings::getValue('measurement_id');
+            $initEvent .= "\nconsole.log('user_id = {$userId}');";
+            $initEvent .= "gtag('config', '{$messId}', {'user_id': '{$userId}'});";
+            $initEvent .= "gtag('set', 'user_properties', {'" . self::USER_DIMENSION_REDAXO_ID . "': '{$userId}'});";
+        }
+
+        if (count($events)) {
             if (self::$debug) {
                 $delayData = [];
                 foreach ($this->getDelayedEvents() as $delayKey => $_events) {
@@ -111,8 +145,12 @@ class Tracking
                 }
 
                 $initEvent .= "\nconsole.log('kreatif.analytics init');";
-                $initEvent .= "\nconsole.log('Delayed Event Count:');";
-                $initEvent .= "\nconsole.log(" . json_encode($delayData) . ");";
+
+                if (count($delayData)) {
+                    $initEvent .= "\nconsole.log('Delayed Events:');";
+                    $initEvent .= "\nconsole.log(" . json_encode($delayData) . ");";
+                }
+                $initEvent .= "\nconsole.log('Pushing " . count($events) . " Events');";
             }
             $result = "<$tagName>\n" . $initEvent . "\n" . $pushs . "\n</$tagName>";
         } elseif (self::$debug) {
@@ -120,9 +158,12 @@ class Tracking
             foreach ($this->getDelayedEvents() as $delayKey => $_events) {
                 $delayData[$delayKey] = count($_events);
             }
-            $initEvent = "\nconsole.log('Delayed Event Count:');";
-            $initEvent .= "\nconsole.log(" . json_encode($delayData) . ");";
-            $result    = "<$tagName>\n" . $initEvent . "\n" . "console.log('No Tracking [kreatif.analytics]');</$tagName>";
+
+            if (count($delayData)) {
+                $initEvent .= "\nconsole.log('Delayed Events:');";
+                $initEvent .= "\nconsole.log(" . json_encode($delayData) . ");";
+            }
+            $result = "<$tagName>\n" . $initEvent . "</$tagName>";
         }
         return $result;
     }
@@ -148,6 +189,9 @@ class Tracking
                     $events[] = $event;
                 }
             }
+        }
+        if (count($events) && $userId = self::getUserId()) {
+            $this->addUserProperties([self::USER_DIMENSION_REDAXO_ID => $userId]);
         }
         return $events;
     }
@@ -187,7 +231,9 @@ class Tracking
 
     public function addUserProperties(array $properties = []): void
     {
-        $this->addEvent(self::EVENT_USERPROPS, $properties);
+        foreach ($properties as $key => $value) {
+            $this->userProperties[$key] = ['value' => $value];
+        }
     }
 
     public function addPageView(array $properties = [], string $delayVisitWithKey = ''): void
@@ -318,10 +364,15 @@ class Tracking
             );
             $bodyParams  = [
                 'json' => [
-                    'client_id' => 'kganalytics',
-                    'events'     => $events,
+                    'client_id' => self::getClientId(),
+                    'events'    => $events,
                 ],
             ];
+
+            if ($userId = self::getUserId()) {
+                $bodyParams['json']['user_id']             = $userId;
+                $bodyParams['json'][self::EVENT_USERPROPS] = $this->userProperties;
+            }
 
             if (self::$debug) {
                 $client    = new Client();

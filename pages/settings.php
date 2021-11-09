@@ -27,6 +27,12 @@ $select = $field->getSelect();
 $select->setSize(1);
 $select->addOptions([1 => 'aktiv', 0 => 'inaktiv']);
 
+$field = $form->addSelectField('push_from_server', null, ["class" => "form-control"]);
+$field->setLabel('Übermittlung über');
+$select = $field->getSelect();
+$select->setSize(1);
+$select->addOptions([1 => 'Server', 0 => 'Client (JS) -> benötigt Tag Manager']);
+
 $field = $form->addTextField('property_id', null, ["class" => "form-control"]);
 $field->setLabel('V4 Property-ID');
 $field->setNotice(

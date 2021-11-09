@@ -57,8 +57,9 @@ class Event
         return $this->isProcessed;
     }
 
-    public function getAsMeasurementObject()
+    public function getAsMeasurementObject(): array
     {
+        $this->isProcessed = true;
         return [
             'name'   => $this->eventName,
             'params' => $this->properties,

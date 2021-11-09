@@ -12,6 +12,7 @@
 namespace Kreatif\kganalytics;
 
 
+use Kreatif\Api;
 use ReportingTest;
 use rex;
 use rex_addon;
@@ -29,7 +30,25 @@ class Extensions
     public static function init()
     {
         if (rex::isFrontend()) {
-            rex_extension::register('OUTPUT_FILTER', [self::class, 'enrichOutput'], rex_extension::LATE);
+            rex_extension::register('OUTPUT_FILTER', [self::class, 'submitTrackingEvents'], rex_extension::LATE);
+
+
+            rex_extension::register(
+                'PACKAGES_INCLUDED',
+                function () {
+                    \rex_login::startSession();
+                    rex_view::setJsProperty(
+                        'kga',
+                        [
+                            'debug'    => Settings::getValue('debug'),
+                            'clientId' => Tracking::getClientId(),
+                            'apiUrls'  => [
+                                'setClientId' => Api::getUrl(\rex_api_kga_api::class, 'setClientId'),
+                            ],
+                        ]
+                    );
+                }
+            );
         } elseif (rex::getUser()) {
             $addon = rex_addon::get('kganalytics');
 
@@ -52,11 +71,15 @@ class Extensions
         ReportingTest::start();
     }
 
-    public static function enrichOutput(rex_extension_point $ep): void
+    public static function submitTrackingEvents(rex_extension_point $ep): void
     {
+        $tracking = Tracking::factory();
+
+        if (Settings::getValue('push_from_server')) {
+            $tracking->sendEventsViaMeasurementProtocol();
+        }
         $doOutput = 'navigate' == rex_server('HTTP_SEC_FETCH_MODE', 'string');
         $doOutput = $doOutput || rex_request::isPJAXRequest();
-        $tracking = Tracking::factory();
 
         if ($doOutput && $scriptTag = $tracking->getScriptTag()) {
             if (rex_request::isPJAXRequest()) {
