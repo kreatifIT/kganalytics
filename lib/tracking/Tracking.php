@@ -15,6 +15,7 @@ namespace Kreatif\kganalytics;
 use GuzzleHttp\Client;
 use GuzzleHttp\Psr7\Query;
 use GuzzleHttp\Psr7\Request;
+use Kreatif\kganalytics\lib\Log;
 use rex;
 use rex_addon;
 use rex_login;
@@ -41,7 +42,8 @@ class Tracking
     const DIMENSION_PAGING_INDEX    = 'visit_paging_index';
     const DIMENSION_VISIT_TIMESTAMP = 'visit_timestamp';
 
-    const DEBUG_LOG_FILENAME = 'ga-tracking.log';
+    const DEBUG_LOG_FILENAME = 'kganalytics_debug.log';
+    const EVENT_LOG_FILENAME = 'kganalytics_events.log';
 
     const MEASUREMENT_URL            = 'https://www.google-analytics.com/mp/collect';
     const MEASUREMENT_VALIDATION_URL = 'https://www.google-analytics.com/debug/mp/collect';
@@ -58,11 +60,11 @@ class Tracking
     public final static function factory(): Tracking
     {
         rex_login::startSession();
-        self::debugLog('Tracking::factory call');
+        self::appendDebugLog('Tracking::factory call');
 
         if (PHP_SESSION_ACTIVE == session_status()) {
             if ($tracking = rex_session('kreatif.analytics.delayed_tracking')) {
-                self::debugLog('recover instance from session');
+                self::appendDebugLog('recover instance from session');
                 rex_unset_session('kreatif.analytics.delayed_tracking');
                 $tracking->start();
             }
@@ -71,7 +73,7 @@ class Tracking
         $_this = rex::getProperty('kreatif.analytics.tracking');
 
         if (!$_this) {
-            self::debugLog('instantiate Tracking');
+            self::appendDebugLog('instantiate Tracking');
             $caller = get_called_class();
             $_this  = new $caller();
             $_this->start();
@@ -87,18 +89,34 @@ class Tracking
         rex::setProperty('kreatif.analytics.tracking', $this);
     }
 
-    public static function debugLog($content)
+    public static function appendDebugLog($content)
     {
-        if (rex_addon::get('kganalytics')->getProperty('debug') == 1) {
+        if (self::$debug) {
             rex::setProperty('kreatif.analytics.debug_log_written', true);
-            $filePath = rex_path::base(self::DEBUG_LOG_FILENAME);
-            file_put_contents($filePath, "$content\n", FILE_APPEND);
+            $log = new \rex_log_file(\rex_path::log(self::DEBUG_LOG_FILENAME), 2000000);
+            $log->add([$content]);
         }
+    }
+
+    public static function appendEventLog(string $clientId, string $userId, array $events)
+    {
+        $log = new \rex_log_file(\rex_path::log(self::EVENT_LOG_FILENAME), 2000000);
+
+        $eventNames = [];
+        foreach ($events as $event) {
+            $eventNames[] = $event['name'];
+        }
+        $log->add([$clientId, $userId, implode(', ', $eventNames), json_encode($events)]);
     }
 
     public static function getClientId(): ?string
     {
-        return rex_session('kganalytics/Tracking.clientId', 'string', null);
+        if (rex::isBackend()) {
+            $clientId = 'kganalytics-backend';
+        } else {
+            $clientId = rex_session('kganalytics/Tracking.clientId', 'string', 'unknown');
+        }
+        return $clientId;
     }
 
     public static function setClientId(string $clientId): void
@@ -226,7 +244,7 @@ class Tracking
         }
         $event->addProperties($properties);
         $this->events[$eventKey] = $event;
-        self::debugLog("+ add event '$eventName' with delayKey = $delayKey");
+        self::appendDebugLog("+ add event '$eventName' with delayKey = $delayKey");
     }
 
     public function addUserProperties(array $properties = []): void
@@ -342,20 +360,24 @@ class Tracking
                 }
             }
             $this->events = $_events;
-            self::debugLog('requested uri = ' . rex_server('REQUEST_URI', 'string'));
-            self::debugLog("save remaining events to session; caller = {$params['caller']}");
+            self::appendDebugLog('requested uri = ' . rex_server('REQUEST_URI', 'string'));
+            self::appendDebugLog("save remaining events to session; caller = {$params['caller']}");
             rex_set_session('kreatif.analytics.delayed_tracking', $this);
         }
         if ('shutdown' == $params['caller'] && rex::getProperty('kreatif.analytics.debug_log_written', false)) {
-            self::debugLog("-------- END ---------\n\n");
+            self::appendDebugLog("-------- END ---------\n\n");
         }
     }
 
     public function sendEventsViaMeasurementProtocol()
     {
-        $events = $this->getEventsForMeasurementProtocol();
+        $userId   = self::getUserId();
+        $clientId = self::getClientId();
+        $events   = $this->getEventsForMeasurementProtocol();
 
         if (count($events)) {
+            self::appendEventLog((string)$clientId, (string)$userId, $events);
+
             $queryParams = Query::build(
                 [
                     'measurement_id' => Settings::getValue('measurement_id'),
@@ -364,17 +386,22 @@ class Tracking
             );
             $bodyParams  = [
                 'json' => [
-                    'client_id' => self::getClientId(),
+                    'client_id' => $clientId,
                     'events'    => $events,
                 ],
             ];
 
-            if ($userId = self::getUserId()) {
+            if ($userId) {
                 $bodyParams['json']['user_id']             = $userId;
                 $bodyParams['json'][self::EVENT_USERPROPS] = $this->userProperties;
             }
 
             if (self::$debug) {
+                if (rex::isBackend()) {
+                    dump(self::MEASUREMENT_VALIDATION_URL . "?{$queryParams}");
+                    dump($bodyParams);
+                }
+
                 $client    = new Client();
                 $request   = new Request('POST', self::MEASUREMENT_VALIDATION_URL . "?{$queryParams}");
                 $response  = $client->send($request, $bodyParams);

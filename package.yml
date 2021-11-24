@@ -1,5 +1,5 @@
 package: kganalytics
-version: '1.6.0'
+version: '1.6.1'
 author: 'Kreatif'
 debug: 0
 compile: 0
@@ -24,3 +24,12 @@ page:
             icon: rex-icon fa-info
             itemclass: pull-right
             perm: kganalytics[settings]
+
+
+pages:
+    system/log/kga_events:
+        title: KGA Events
+        perm: admin[]
+    system/log/kga_debug:
+        title: KGA Debug Log
+        perm: admin[]

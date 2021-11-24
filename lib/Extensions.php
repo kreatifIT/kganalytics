@@ -87,7 +87,6 @@ class Extensions
             } else {
                 $output = str_replace('</body>', $scriptTag . '</body>', $ep->getSubject());
             }
-            Tracking::debugLog('---> SCRIPT TAG OUTPUT <---');
             $ep->setSubject($output);
         }
         $tracking->saveDelayedEvents(['caller' => 'enrichOutput']);

@@ -30,35 +30,11 @@ class Settings
         return $addon->getConfig($key);
     }
 
-    public static function testSettings(): string
+    public static function testSettings(): void
     {
-        // todo: add a valid test-case
-        $client = DataClient::factory();
-
-        try {
-            $client->runReport(
-                [
-                    'property'   => 'properties/###PROPERTY-ID###',
-                    'dateRanges' => [
-                        new V1beta\DateRange(
-                            [
-                                'start_date' => date('Y-m-d', strtotime('-7 days')),
-                                'end_date'   => 'today',
-                            ]
-                        ),
-                    ],
-                    'metrics'    => [
-                        new V1beta\Metric(
-                            [
-                                'name' => 'activeUsers',
-                            ]
-                        ),
-                    ],
-                ]
-            );
-            return '';
-        } catch (ApiException $ex) {
-            return $ex->getBasicMessage();
-        }
+        Tracking::$debug = true;
+        $tracking = Tracking::factory();
+        $tracking->addPageView();
+        $tracking->sendEventsViaMeasurementProtocol();
     }
 }

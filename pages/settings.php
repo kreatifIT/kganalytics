@@ -13,10 +13,11 @@ $action = rex_get('action', 'string');
 $form   = rex_config_form::factory('kganalytics');
 
 if ($action == 'test-settings') {
-    if ($message = \Kreatif\kganalytics\Settings::testSettings()) {
-        echo '<div class="alert alert-danger">' . $message . '</div>';
-    } else {
-        echo '<div class="alert alert-success">Settings are working</div>';
+    try {
+        \Kreatif\kganalytics\Settings::testSettings();
+        echo rex_view::info('Settings are working');
+    } catch (\Kreatif\kganalytics\TrackingException $ex) {
+        echo rex_view::error($ex->getMessage());
     }
 }
 
@@ -76,8 +77,8 @@ $field->setNotice(
 $formOutput = $form->get();
 
 $button = [
-    'label' => 'Test settings',
-    'url' => rex_url::currentBackendPage(['action' => 'test-settings']),
+    'label'      => 'Test settings',
+    'url'        => rex_url::currentBackendPage(['action' => 'test-settings']),
     'attributes' => ['class' => ['btn', 'btn-primary']],
 ];
 if (\Kreatif\kganalytics\Settings::getValue('property_id') == '') {
