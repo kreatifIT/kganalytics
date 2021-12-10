@@ -1,5 +1,4 @@
 <?php
-
 /**
  * This file is part of the Kreatif/geo package.
  *
@@ -9,6 +8,9 @@
  * For the full copyright and license information, please view the LICENSE
  * file that was distributed with this source code.
  */
+
+
+
 class rex_api_kga_api extends \Kreatif\Api
 {
 

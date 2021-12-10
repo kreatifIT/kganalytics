@@ -32,9 +32,11 @@ class Settings
 
     public static function testSettings(): void
     {
+        $event  = new Event(Tracking::CUSTOM_EVENT_VISIT);
+        $_event = $event->getAsMeasurementObject();
+
         Tracking::$debug = true;
-        $tracking = Tracking::factory();
-        $tracking->addPageView();
-        $tracking->sendEventsViaMeasurementProtocol();
+        $tracking        = Tracking::factory();
+        $tracking::sendEventsViaMeasurementProtocol([$_event], null);
     }
 }

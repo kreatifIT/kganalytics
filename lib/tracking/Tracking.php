@@ -16,10 +16,9 @@ use GuzzleHttp\Client;
 use GuzzleHttp\Psr7\Query;
 use GuzzleHttp\Psr7\Request;
 use Kreatif\kganalytics\lib\Log;
+use Kreatif\kganalytics\lib\Model\Queue;
 use rex;
-use rex_addon;
 use rex_login;
-use rex_path;
 use rex_request;
 use Whoops\Exception\ErrorException;
 
@@ -98,7 +97,7 @@ class Tracking
         }
     }
 
-    public static function appendEventLog(string $clientId, string $userId, array $events)
+    public static function appendEventLog(string $clientId, string $userId, array $events, int $timestamp = null)
     {
         $log = new \rex_log_file(\rex_path::log(self::EVENT_LOG_FILENAME), 2000000);
 
@@ -106,7 +105,7 @@ class Tracking
         foreach ($events as $event) {
             $eventNames[] = $event['name'];
         }
-        $log->add([$clientId, $userId, implode(', ', $eventNames), json_encode($events)]);
+        $log->add([$clientId, $userId, implode(', ', $eventNames), json_encode($events), $timestamp]);
     }
 
     public static function getClientId(): ?string
@@ -121,6 +120,10 @@ class Tracking
 
     public static function setClientId(string $clientId): void
     {
+        if ($dataset = Queue::getByCurrentSessionId()) {
+            $dataset->setValue('client_id', $clientId);
+            $dataset->inserUpdate();
+        }
         rex_set_session('kganalytics/Tracking.clientId', $clientId);
     }
 
@@ -131,6 +134,10 @@ class Tracking
 
     public static function setUserId(string $userId): void
     {
+        if ($dataset = Queue::getByCurrentSessionId()) {
+            $dataset->setValue('user_id', $userId);
+            $dataset->inserUpdate();
+        }
         rex_set_session('kganalytics/Tracking.userId', $userId);
     }
 
@@ -369,14 +376,54 @@ class Tracking
         }
     }
 
-    public function sendEventsViaMeasurementProtocol()
+    public function enqueueEventsForServersidePush()
     {
-        $userId   = self::getUserId();
-        $clientId = self::getClientId();
-        $events   = $this->getEventsForMeasurementProtocol();
+        $events = $this->getEventsForMeasurementProtocol();
 
         if (count($events)) {
-            self::appendEventLog((string)$clientId, (string)$userId, $events);
+            $timestamp = microtime(true) * 1000000;
+            $userId    = self::getUserId();
+            $clientId  = rex_session('kganalytics/Tracking.clientId', 'string', null);
+            $dataset   = Queue::getByCurrentSessionId();
+
+            if (!$dataset) {
+                $dataset = Queue::create();
+                $dataset->setValue('session_id', session_id());
+                $dataset->setValue('createdate', date('Y-m-d H:i:s'));
+            }
+            if ($clientId) {
+                $dataset->setValue('client_id', $clientId);
+            }
+            if ($userId) {
+                $dataset->setValue('user_id', $userId);
+            }
+            if ($this->userProperties) {
+                $dataset->setValue('user_properties', json_encode($this->userProperties));
+            }
+
+            $_events             = $dataset->getArrayValue('events');
+            $_events[$timestamp] = $events;
+
+            $dataset->setValue('events', json_encode($_events));
+            $dataset->setValue('updatedate', date('Y-m-d H:i:s'));
+            $sql = $dataset->inserUpdate();
+
+            if (self::$debug && $sql->hasError()) {
+                pr($sql->getError(), 'red');
+            }
+        }
+    }
+
+    public static function sendEventsViaMeasurementProtocol(
+        array $events,
+        ?string $clientId,
+        string $userId = null,
+        array $userProperties = [],
+        int $timestamp = null
+    ): bool {
+        if (count($events)) {
+            $clientId = $clientId ?? self::getClientId();
+            self::appendEventLog((string)$clientId, (string)$userId, $events, $timestamp);
 
             $queryParams = Query::build(
                 [
@@ -393,7 +440,10 @@ class Tracking
 
             if ($userId) {
                 $bodyParams['json']['user_id']             = $userId;
-                $bodyParams['json'][self::EVENT_USERPROPS] = $this->userProperties;
+                $bodyParams['json'][self::EVENT_USERPROPS] = $userProperties;
+            }
+            if ($timestamp) {
+                $bodyParams['json']['timestamp_micros'] = $timestamp;
             }
 
             if (self::$debug) {
@@ -416,9 +466,12 @@ class Tracking
                 }
             }
 
-            $client  = new Client();
-            $request = new Request('POST', self::MEASUREMENT_URL . "?{$queryParams}");
-            $client->send($request, $bodyParams);
+            $client     = new Client();
+            $request    = new Request('POST', self::MEASUREMENT_URL . "?{$queryParams}");
+            $response   = $client->send($request, $bodyParams);
+            $respStatus = $response->getStatusCode();
+
+            return $respStatus >= 200 && $respStatus < 300;
         }
     }
 
@@ -430,6 +483,13 @@ class Tracking
             $result[] = $event->getAsMeasurementObject();
         }
         return $result;
+    }
+
+    public static function ext_trackYComLogin(\rex_extension_point $ep): void
+    {
+        /** @var \rex_ycom_user $user */
+        $user = $ep->getSubject();
+        self::setUserId($user->getId());
     }
 }
 

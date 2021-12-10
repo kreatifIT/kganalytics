@@ -18,7 +18,8 @@ $logFile = new LimitIterator($logFile, 0, $limit);
     <thead>
     <tr>
         <th class="rex-table-icon"></th>
-        <th>Date</th>
+        <th>Log Time</th>
+        <th>Event Time</th>
         <th>Client-ID</th>
         <th>User-ID</th>
         <th>Events</th>
@@ -30,12 +31,16 @@ $logFile = new LimitIterator($logFile, 0, $limit);
     <?php foreach ($logFile as $entry): ?>
         <?php
         /** @var rex_log_entry $entry */
-        $data  = $entry->getData();
+        $data    = $entry->getData();
+        $logTime = $entry->getTimestamp('%d.%m.%Y %H:%M:%S');
         ?>
         <tr class="<?= 'ERROR' == trim($data[0]) ? 'rex-state-error' : 'rex-state-success' ?>">
             <td class="rex-table-icon"><i class="rex-icon rex-icon-cronjob"></i></td>
             <td>
-                <?= $entry->getTimestamp('%d.%m.%Y %H:%M:%S') ?>
+                <?= $logTime ?>
+            </td>
+            <td>
+                <?= $data[4] ? date('d.m.Y H:i:s', $data[4] / 1000000) : $logTime ?>
             </td>
             <td>
                 <?= $data[0] ?>

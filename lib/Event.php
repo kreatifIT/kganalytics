@@ -60,10 +60,10 @@ class Event
     public function getAsMeasurementObject(): array
     {
         $this->isProcessed = true;
-        return [
+        return array_filter([
             'name'   => $this->eventName,
             'params' => $this->properties,
-        ];
+        ]);
     }
 
     public function __toString(): string

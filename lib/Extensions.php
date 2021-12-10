@@ -13,6 +13,8 @@ namespace Kreatif\kganalytics;
 
 
 use Kreatif\Api;
+use Kreatif\kganalytics\lib\cron\QueueCron;
+use Kreatif\kganalytics\lib\Model\Queue;
 use ReportingTest;
 use rex;
 use rex_addon;
@@ -29,9 +31,13 @@ class Extensions
 
     public static function init()
     {
+        // register model class
+        \rex_yform_manager_dataset::setModelClass(Queue::getDbTable(), Queue::class);
+        // register cronjobs
+        \KreatifCronjobs::registerCronAction('KGAnalytics.submitQueue', [QueueCron::class, 'cron_submitQueue']);
+
         if (rex::isFrontend()) {
             rex_extension::register('OUTPUT_FILTER', [self::class, 'submitTrackingEvents'], rex_extension::LATE);
-
 
             rex_extension::register(
                 'PACKAGES_INCLUDED',
@@ -64,6 +70,8 @@ class Extensions
 
             rex_extension::register('PACKAGES_INCLUDED', [self::class, 'start']);
         }
+
+        rex_extension::register('YCOM_AUTH_LOGIN_SUCCESS', [Tracking::class, 'ext_trackYComLogin']);
     }
 
     public static function start()
@@ -76,7 +84,7 @@ class Extensions
         $tracking = Tracking::factory();
 
         if (Settings::getValue('push_from_server')) {
-            $tracking->sendEventsViaMeasurementProtocol();
+            $tracking->enqueueEventsForServersidePush();
         }
         $doOutput = 'navigate' == rex_server('HTTP_SEC_FETCH_MODE', 'string');
         $doOutput = $doOutput || rex_request::isPJAXRequest();
