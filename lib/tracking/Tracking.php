@@ -15,6 +15,7 @@ namespace Kreatif\kganalytics;
 use GuzzleHttp\Client;
 use GuzzleHttp\Psr7\Query;
 use GuzzleHttp\Psr7\Request;
+use Kreatif\IubendaCookie;
 use Kreatif\kganalytics\lib\Log;
 use Kreatif\kganalytics\lib\Model\Queue;
 use rex;
@@ -145,7 +146,7 @@ class Tracking
     {
         $result  = '';
         $events  = $this->getEventsToProcess();
-        $tagName = rex_request::isPJAXRequest() ? 'pjax-script' : 'script ' . \Kreatif\Cookie::getIubendaAttributes('2,3,4,5');
+        $tagName = rex_request::isPJAXRequest() ? 'pjax-script' : 'script ' . IubendaCookie::getAttributes('2,3,4,5');
 
         if (Settings::getValue('push_from_server')) {
             $initEvent = "console.log('Events are pushed server-side');";
