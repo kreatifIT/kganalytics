@@ -146,7 +146,7 @@ class Tracking
     {
         $result  = '';
         $events  = $this->getEventsToProcess();
-        $tagName = rex_request::isPJAXRequest() ? 'pjax-script' : 'script ' . IubendaCookie::getAttributes('2,3,4,5');
+        $tagName = rex_request::isPJAXRequest() ? 'pjax-script' : 'script';
 
         if (Settings::getValue('push_from_server')) {
             $initEvent = "console.log('Events are pushed server-side');";
