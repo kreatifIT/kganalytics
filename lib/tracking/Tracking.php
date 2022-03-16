@@ -293,24 +293,18 @@ class Tracking
 
     public function addLogin(string $method = 'custom'): void
     {
-        $this->addEvent(
-            self::EVENT_LOGIN,
-            [
-                'method'  => $method,
-                'success' => true,
-            ]
-        );
+        $this->addEvent(self::EVENT_LOGIN, [
+            'method'  => $method,
+            'success' => true,
+        ]);
     }
 
     public function addFailedLogin(string $method = 'custom'): void
     {
-        $this->addEvent(
-            self::EVENT_LOGIN,
-            [
-                'method'  => $method,
-                'success' => false,
-            ]
-        );
+        $this->addEvent(self::EVENT_LOGIN, [
+            'method'  => $method,
+            'success' => false,
+        ]);
     }
 
     public function addLead(float $price = null, array $properties = []): void
@@ -426,12 +420,10 @@ class Tracking
             $clientId = $clientId ?? self::getClientId();
             self::appendEventLog((string)$clientId, (string)$userId, $events, $timestamp);
 
-            $queryParams = Query::build(
-                [
-                    'measurement_id' => Settings::getValue('measurement_id'),
-                    'api_secret'     => Settings::getValue('measurement_api_secret'),
-                ]
-            );
+            $queryParams = Query::build([
+                                            'measurement_id' => Settings::getValue('measurement_id'),
+                                            'api_secret'     => Settings::getValue('measurement_api_secret'),
+                                        ]);
             $bodyParams  = [
                 'json' => [
                     'client_id' => $clientId,
@@ -491,6 +483,18 @@ class Tracking
         /** @var \rex_ycom_user $user */
         $user = $ep->getSubject();
         self::setUserId($user->getId());
+    }
+
+
+    public static function addClickGTMParams(array $params): string
+    {
+        $outputParams = [];
+        $prefix       = 'data-gtm';
+
+        foreach ($params as $key => $value) {
+            $outputParams[] = $prefix . '-' . $key . '="' . $value . '"';
+        }
+        return implode(' ', $outputParams);
     }
 }
 
