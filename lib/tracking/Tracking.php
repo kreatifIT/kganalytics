@@ -153,6 +153,7 @@ class Tracking
             $pushs     = [];
         } else {
             $initEvent = 'window.dataLayer = window.dataLayer || [];';
+            $initEvent .= "function gtag(){dataLayer.push(arguments);}";
             $pushs     = implode("\n", $events);
         }
 
