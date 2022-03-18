@@ -123,7 +123,7 @@ class Tracking
     {
         if ($dataset = Queue::getByCurrentSessionId()) {
             $dataset->setValue('client_id', $clientId);
-            $dataset->inserUpdate();
+            $dataset->insertUpdate();
         }
         rex_set_session('kganalytics/Tracking.clientId', $clientId);
     }
@@ -137,7 +137,7 @@ class Tracking
     {
         if ($dataset = Queue::getByCurrentSessionId()) {
             $dataset->setValue('user_id', $userId);
-            $dataset->inserUpdate();
+            $dataset->insertUpdate();
         }
         rex_set_session('kganalytics/Tracking.userId', $userId);
     }
@@ -153,15 +153,18 @@ class Tracking
             $pushs     = [];
         } else {
             $initEvent = 'window.dataLayer = window.dataLayer || [];';
-            $initEvent .= "function gtag(){dataLayer.push(arguments);}";
             $pushs     = implode("\n", $events);
         }
 
         if ($userId = self::getUserId()) {
-            $messId    = Settings::getValue('measurement_id');
+            $messId = Settings::getValue('measurement_id');
+
             $initEvent .= "\nconsole.log('user_id = {$userId}');";
+            // NOTE Find better check if analytics is embedded ( via tagmanager or directly over gtag )
+            $initEvent .= "if( typeof gtag === 'function'){";
             $initEvent .= "gtag('config', '{$messId}', {'user_id': '{$userId}'});";
             $initEvent .= "gtag('set', 'user_properties', {'" . self::USER_DIMENSION_REDAXO_ID . "': '{$userId}'});";
+            $initEvent .= "}";
         }
 
         if (count($events)) {
@@ -402,7 +405,7 @@ class Tracking
 
             $dataset->setValue('events', json_encode($_events));
             $dataset->setValue('updatedate', date('Y-m-d H:i:s'));
-            $sql = $dataset->inserUpdate();
+            $sql = $dataset->insertUpdate();
 
             if (self::$debug && $sql->hasError()) {
                 pr($sql->getError(), 'red');

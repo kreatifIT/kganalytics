@@ -51,7 +51,7 @@ class QueueCron extends \KreatifCronjobs
 
             if (count($failedEvents)) {
                 $dataset->setValue('events', $failedEvents);
-                $dataset->inserUpdate();
+                $dataset->insertUpdate();
             } else {
                 $dataset->delete();
             }
