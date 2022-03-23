@@ -86,10 +86,8 @@ class Extensions
         if (Settings::getValue('push_from_server')) {
             $tracking->enqueueEventsForServersidePush();
         }
-        $doOutput = 'navigate' == rex_server('HTTP_SEC_FETCH_MODE', 'string');
-        $doOutput = $doOutput || rex_request::isPJAXRequest();
 
-        if ($doOutput && $scriptTag = $tracking->getScriptTag()) {
+        if ($scriptTag = $tracking->getScriptTag()) {
             if (rex_request::isPJAXRequest()) {
                 $output = $ep->getSubject() . $scriptTag;
             } else {
