@@ -34,6 +34,10 @@ $select = $field->getSelect();
 $select->setSize(1);
 $select->addOptions([1 => 'Server', 0 => 'Client (JS) -> benötigt Tag Manager']);
 
+$field = $form->addTextField('queue_min_wait_time', null, ["class" => "form-control"]);
+$field->setLabel('Queue Min Wait Time');
+$field->setNotice( 'Mindest-Dauer, bis die serverseitigen Events gesendet werden.');
+
 $field = $form->addTextField('property_id', null, ["class" => "form-control"]);
 $field->setLabel('V4 Property-ID');
 $field->setNotice(

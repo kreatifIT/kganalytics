@@ -12,6 +12,7 @@
 namespace Kreatif\kganalytics\lib\Model;
 
 
+use Kreatif\kganalytics\Settings;
 use yform\usability\Model;
 
 
@@ -20,6 +21,10 @@ class Queue extends Model
     const TABLE         = '{PREFIX}kga_event_queue';
     const MIN_WAIT_TIME = 300; // 5 min
 
+    public static function getMinWaitTime(): int
+    {
+        return Settings::getValue('queue_min_wait_time') ?: self::MIN_WAIT_TIME;
+    }
 
     public static function getByCurrentSessionId(): ?self
     {
