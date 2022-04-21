@@ -11,18 +11,8 @@
 
 namespace Kreatif\kganalytics;
 
-
-use GuzzleHttp\Client;
-use GuzzleHttp\Psr7\Query;
-use GuzzleHttp\Psr7\Request;
-use Kreatif\IubendaCookie;
 use Kreatif\kganalytics\lib\Log;
 use Kreatif\kganalytics\lib\Model\Queue;
-use rex;
-use rex_login;
-use rex_request;
-use Whoops\Exception\ErrorException;
-
 
 class Tracking
 {
@@ -45,21 +35,14 @@ class Tracking
     const DEBUG_LOG_FILENAME = 'kganalytics_debug.log';
     const EVENT_LOG_FILENAME = 'kganalytics_events.log';
 
-    const MEASUREMENT_URL            = 'https://www.google-analytics.com/mp/collect';
-    const MEASUREMENT_VALIDATION_URL = 'https://www.google-analytics.com/debug/mp/collect';
-
 
     public static bool $debug = false;
-
-    private array $events         = [];
-    private array $userProperties = [];
-    private array $delayKeys      = ['_overdue', '_default'];
 
     private function __construct() { }
 
     public final static function factory(): Tracking
     {
-        rex_login::startSession();
+        \rex_login::startSession();
         self::appendDebugLog('Tracking::factory call');
 
         if (PHP_SESSION_ACTIVE == session_status()) {
@@ -70,11 +53,11 @@ class Tracking
             }
         }
 
-        $_this = rex::getProperty('kreatif.analytics.tracking');
+        $caller = get_called_class();
+        $_this = \rex::getProperty('kreatif.analytics.tracking-'.$caller);
 
         if (!$_this) {
             self::appendDebugLog('instantiate Tracking');
-            $caller = get_called_class();
             $_this  = new $caller();
             $_this->start();
         }
@@ -86,13 +69,13 @@ class Tracking
         register_shutdown_function([$this, 'saveDelayedEvents'], ['caller' => 'shutdown']);
         $this->events = array_values($this->events);
         self::$debug  = Settings::getValue('debug');
-        rex::setProperty('kreatif.analytics.tracking', $this);
+        \rex::setProperty('kreatif.analytics.tracking-'.get_class($this), $this);
     }
 
     public static function appendDebugLog($content)
     {
         if (self::$debug) {
-            rex::setProperty('kreatif.analytics.debug_log_written', true);
+            \rex::setProperty('kreatif.analytics.debug_log_written-'.get_class(), true);
             $log = new \rex_log_file(\rex_path::log(self::DEBUG_LOG_FILENAME), 2000000);
             $log->add([$content]);
         }
@@ -111,7 +94,7 @@ class Tracking
 
     public static function getClientId(): ?string
     {
-        if (rex::isBackend()) {
+        if (\rex::isBackend()) {
             $clientId = 'kganalytics-backend';
         } else {
             $clientId = rex_session('kganalytics/Tracking.clientId', 'string', 'unknown');
@@ -142,63 +125,9 @@ class Tracking
         rex_set_session('kganalytics/Tracking.userId', $userId);
     }
 
-    public final function getScriptTag(): string
-    {
-        $result  = '';
-        $events  = $this->getEventsToProcess();
-        $tagName = rex_request::isPJAXRequest() ? 'pjax-script' : 'script';
 
-        if (Settings::getValue('push_from_server')) {
-            $initEvent = "console.log('Events are pushed server-side');";
-            $pushs     = [];
-        } else {
-            $initEvent = 'window.dataLayer = window.dataLayer || [];';
-            $pushs     = implode("\n", $events);
-        }
 
-        if ($userId = self::getUserId()) {
-            $messId = Settings::getValue('measurement_id');
-
-            $initEvent .= "\nconsole.log('user_id = {$userId}');";
-            // NOTE Find better check if analytics is embedded ( via tagmanager or directly over gtag )
-            $initEvent .= "if( typeof gtag === 'function'){";
-            $initEvent .= "gtag('config', '{$messId}', {'user_id': '{$userId}'});";
-            $initEvent .= "gtag('set', 'user_properties', {'" . self::USER_DIMENSION_REDAXO_ID . "': '{$userId}'});";
-            $initEvent .= "}";
-        }
-
-        if (count($events)) {
-            if (self::$debug) {
-                $delayData = [];
-                foreach ($this->getDelayedEvents() as $delayKey => $_events) {
-                    $delayData[$delayKey] = count($_events);
-                }
-
-                $initEvent .= "\nconsole.log('kreatif.analytics init');";
-
-                if (count($delayData)) {
-                    $initEvent .= "\nconsole.log('Delayed Events:');";
-                    $initEvent .= "\nconsole.log(" . json_encode($delayData) . ");";
-                }
-                $initEvent .= "\nconsole.log('Pushing " . count($events) . " Events');";
-            }
-            $result = "<$tagName>\n" . $initEvent . "\n" . $pushs . "\n</$tagName>";
-        } elseif (self::$debug) {
-            $delayData = [];
-            foreach ($this->getDelayedEvents() as $delayKey => $_events) {
-                $delayData[$delayKey] = count($_events);
-            }
-
-            if (count($delayData)) {
-                $initEvent .= "\nconsole.log('Delayed Events:');";
-                $initEvent .= "\nconsole.log(" . json_encode($delayData) . ");";
-            }
-            $result = "<$tagName>\n" . $initEvent . "</$tagName>";
-        }
-        return $result;
-    }
-
-    private function getDelayedEvents(): array
+    public function getDelayedEvents(): array
     {
         $collection = [];
         foreach ($this->events as $event) {
@@ -209,7 +138,7 @@ class Tracking
         return $collection;
     }
 
-    private function getEventsToProcess(): array
+    public function getEventsToProcess(): array
     {
         $events = [];
 
@@ -237,14 +166,14 @@ class Tracking
         array $properties = [],
         string $delayKey = '_default'
     ): void {
-        $eventNames = rex::getProperty('kreatif.analytics.uq_event_names', []);
+        $eventNames = \rex::getProperty('kreatif.analytics.uq_event_names-'.get_class($this), []);
         $eventKey   = array_key_exists($eventName, $eventNames) ? $eventNames[$eventName] : false;
 
         if (false === $eventKey) {
             $eventKey               = count($this->events);
             $event                  = new Event($eventName);
             $eventNames[$eventName] = $eventKey;
-            rex::setProperty('kreatif.analytics.uq_event_names', $eventNames);
+            \rex::setProperty('kreatif.analytics.uq_event_names-'.get_class($this), $eventNames);
         } else {
             $event = $this->events[$eventKey];
         }
@@ -370,117 +299,11 @@ class Tracking
             self::appendDebugLog("save remaining events to session; caller = {$params['caller']}");
             rex_set_session('kreatif.analytics.delayed_tracking', $this);
         }
-        if ('shutdown' == $params['caller'] && rex::getProperty('kreatif.analytics.debug_log_written', false)) {
+        if ('shutdown' == $params['caller'] && \rex::getProperty('kreatif.analytics.debug_log_written-'.get_class($this), false)) {
             self::appendDebugLog("-------- END ---------\n\n");
         }
     }
 
-    public function enqueueEventsForServersidePush()
-    {
-        $events = $this->getEventsForMeasurementProtocol();
-
-        if (count($events)) {
-            $timestamp = microtime(true) * 1000000;
-            $userId    = self::getUserId();
-            $clientId  = rex_session('kganalytics/Tracking.clientId', 'string', null);
-            $dataset   = Queue::getByCurrentSessionId();
-
-            if (!$dataset) {
-                $dataset = Queue::create();
-                $dataset->setValue('session_id', session_id());
-                $dataset->setValue('createdate', date('Y-m-d H:i:s'));
-            }
-            if ($clientId) {
-                $dataset->setValue('client_id', $clientId);
-            }
-            if ($userId) {
-                $dataset->setValue('user_id', $userId);
-            }
-            if ($this->userProperties) {
-                $dataset->setValue('user_properties', json_encode($this->userProperties));
-            }
-
-            $_events             = $dataset->getArrayValue('events');
-            $_events[$timestamp] = $events;
-
-            $dataset->setValue('events', json_encode($_events));
-            $dataset->setValue('updatedate', date('Y-m-d H:i:s'));
-            $sql = $dataset->insertUpdate();
-
-            if (self::$debug && $sql->hasError()) {
-                pr($sql->getError(), 'red');
-            }
-        }
-    }
-
-    public static function sendEventsViaMeasurementProtocol(
-        array $events,
-        ?string $clientId,
-        string $userId = null,
-        array $userProperties = [],
-        int $timestamp = null
-    ): bool {
-        if (count($events)) {
-            $clientId = $clientId ?? self::getClientId();
-            self::appendEventLog((string)$clientId, (string)$userId, $events, $timestamp);
-
-            $queryParams = Query::build([
-                                            'measurement_id' => Settings::getValue('measurement_id'),
-                                            'api_secret'     => Settings::getValue('measurement_api_secret'),
-                                        ]);
-            $bodyParams  = [
-                'json' => [
-                    'client_id' => $clientId,
-                    'events'    => $events,
-                ],
-            ];
-
-            if ($userId) {
-                $bodyParams['json']['user_id']             = $userId;
-                $bodyParams['json'][self::EVENT_USERPROPS] = $userProperties;
-            }
-            if ($timestamp) {
-                $bodyParams['json']['timestamp_micros'] = $timestamp;
-            }
-
-            if (self::$debug) {
-                if (rex::isBackend()) {
-                    dump(self::MEASUREMENT_VALIDATION_URL . "?{$queryParams}");
-                    dump($bodyParams);
-                }
-
-                $client    = new Client();
-                $request   = new Request('POST', self::MEASUREMENT_VALIDATION_URL . "?{$queryParams}");
-                $response  = $client->send($request, $bodyParams);
-                $_response = \GuzzleHttp\json_decode($response->getBody()->getContents(), true);
-
-                $errors = [];
-                foreach ($_response['validationMessages'] as $error) {
-                    $errors[] = "{$error['validationCode']}: {$error['description']}";
-                }
-                if (count($errors)) {
-                    throw new TrackingException(implode("\n", $errors));
-                }
-            }
-
-            $client     = new Client();
-            $request    = new Request('POST', self::MEASUREMENT_URL . "?{$queryParams}");
-            $response   = $client->send($request, $bodyParams);
-            $respStatus = $response->getStatusCode();
-
-            return $respStatus >= 200 && $respStatus < 300;
-        }
-    }
-
-    private function getEventsForMeasurementProtocol(): array
-    {
-        $result = [];
-        /** @var Event $event */
-        foreach ($this->getEventsToProcess() as $event) {
-            $result[] = $event->getAsMeasurementObject();
-        }
-        return $result;
-    }
 
     public static function ext_trackYComLogin(\rex_extension_point $ep): void
     {
@@ -488,21 +311,4 @@ class Tracking
         $user = $ep->getSubject();
         self::setUserId($user->getId());
     }
-
-
-    public static function addClickGTMParams(array $params): string
-    {
-        $outputParams = [];
-        $prefix       = 'data-gtm';
-
-        foreach ($params as $key => $value) {
-            $outputParams[] = $prefix . '-' . $key . '="' . $value . '"';
-        }
-        return implode(' ', $outputParams);
-    }
-}
-
-
-class TrackingException extends ErrorException
-{
 }

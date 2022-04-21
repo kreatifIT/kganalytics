@@ -74,7 +74,7 @@ class Event
 
         if (Tracking::$debug) {
             $jsonData = json_encode($properties);
-            $result   .= "console.log('kreatif.analytics.tracking: $this->eventName; $jsonData');";
+            $result   .= "console.log('kreatif.analytics.tracking-".get_class($this).": $this->eventName; $jsonData');";
         }
         Tracking::appendDebugLog("- processing event '$this->eventName' with delayKey = $this->delayKey");
         $this->isProcessed = true;

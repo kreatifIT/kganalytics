@@ -81,20 +81,23 @@ class Extensions
 
     public static function submitTrackingEvents(rex_extension_point $ep): void
     {
-        $tracking = Tracking::factory();
+        $GA4ServerSideTracking = GA4ServerSideTracking::factory();
+        $GTMClientSideTracking = GTMClientSideTracking::factory();
 
-        if (Settings::getValue('push_from_server')) {
-            $tracking->enqueueEventsForServersidePush();
-        }
+        //do magic for GA4 Server-Side Tracking
+        $GA4ServerSideTracking->enqueueEventsForServersidePush();
+        $GA4ServerSideTracking->saveDelayedEvents(['caller' => 'enrichOutput']);
 
-        if ($scriptTag = $tracking->getScriptTag()) {
+        //do magic for GTM Client Side Tracking
+        if ($scriptTag = $GTMClientSideTracking->getScriptTag()) {
             if (rex_request::isPJAXRequest()) {
                 $output = $ep->getSubject() . $scriptTag;
             } else {
                 $output = str_replace('</body>', $scriptTag . '</body>', $ep->getSubject());
             }
             $ep->setSubject($output);
+            $GTMClientSideTracking->saveDelayedEvents(['caller' => 'enrichOutput']);
         }
-        $tracking->saveDelayedEvents(['caller' => 'enrichOutput']);
+
     }
 }

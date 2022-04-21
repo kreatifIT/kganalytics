@@ -12,6 +12,7 @@
 namespace Kreatif\kganalytics\lib\cron;
 
 
+use Kreatif\kganalytics\GA4ServerSideTracking;
 use Kreatif\kganalytics\lib\Model\Queue;
 use Kreatif\kganalytics\Tracking;
 
@@ -22,7 +23,7 @@ class QueueCron extends \KreatifCronjobs
     public static function cron_submitQueue(\KreatifCronjobs $job)
     {
         $query = Queue::query();
-        $query->where('createdate', date('Y-m-d H:i:s', strtotime('-' . Queue::MIN_WAIT_TIME . ' seconds')), '<=');
+        $query->where('createdate', date('Y-m-d H:i:s', strtotime('-' . Queue::getMinWaitTime() . ' seconds')), '<=');
         $query->resetOrderBy();
         $query->orderBy('id');
         $collection = $query->find();
@@ -41,7 +42,7 @@ class QueueCron extends \KreatifCronjobs
 
             foreach ($eventList as $timestamp => $events) {
                 try {
-                    if (!Tracking::sendEventsViaMeasurementProtocol($events, $clientId, $userId, $userProps, $timestamp)) {
+                    if (!GA4ServerSideTracking::sendEventsViaMeasurementProtocol($events, $clientId, $userId, $userProps, $timestamp)) {
                         $failedEvents[$timestamp] = $events;
                     }
                 } catch (\Throwable $ex) {

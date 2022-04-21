@@ -28,14 +28,14 @@ $select = $field->getSelect();
 $select->setSize(1);
 $select->addOptions([1 => 'aktiv', 0 => 'inaktiv']);
 
-$field = $form->addSelectField('push_from_server', null, ["class" => "form-control"]);
-$field->setLabel('Übermittlung über');
-$select = $field->getSelect();
-$select->setSize(1);
-$select->addOptions([1 => 'Server', 0 => 'Client (JS) -> benötigt Tag Manager']);
+//$field = $form->addSelectField('push_from_server', null, ["class" => "form-control"]);
+//$field->setLabel('Übermittlung über');
+//$select = $field->getSelect();
+//$select->setSize(1);
+//$select->addOptions([1 => 'Server', 0 => 'Client (JS) -> benötigt Tag Manager']);
 
 $field = $form->addTextField('queue_min_wait_time', null, ["class" => "form-control"]);
-$field->setLabel('Queue Min Wait Time');
+$field->setLabel('GA4 Server: Queue Min Wait Time');
 $field->setNotice( 'Mindest-Dauer in Sekunden, bis die serverseitigen Events gesendet werden. (Standard = 300s)');
 
 $field = $form->addTextField('property_id', null, ["class" => "form-control"]);
