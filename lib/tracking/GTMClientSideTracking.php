@@ -17,11 +17,10 @@ class GTMClientSideTracking extends Tracking
     public array $userProperties = [];
     public array $delayKeys      = ['_overdue', '_default'];
 
-    public final function getScriptTag($tagAttributes = []): string
+    public final function getScriptTag(): string
     {
-        $result  = '';
         $events  = $this->getEventsToProcess();
-        $tagName = \rex_request::isPJAXRequest() ? 'pjax-script' : 'script';
+        $tagName = \rex_extension::registerPoint(new \rex_extension_point('KGANALYTICS_SCRIPT_TAG', \rex_request::isPJAXRequest() ? 'pjax-script' : 'script'));
 
         $initEvent = 'window.dataLayer = window.dataLayer || [];';
         $pushs     = implode("\n", $events);
@@ -53,7 +52,6 @@ class GTMClientSideTracking extends Tracking
                 }
                 $initEvent .= "\nconsole.log('Pushing " . count($events) . " Events');";
             }
-            $result = "<$tagName>\n" . $initEvent . "\n" . $pushs . "\n</$tagName>";
         } elseif (self::$debug) {
             $delayData = [];
             foreach ($this->getDelayedEvents() as $delayKey => $_events) {
@@ -64,10 +62,9 @@ class GTMClientSideTracking extends Tracking
                 $initEvent .= "\nconsole.log('Delayed Events:');";
                 $initEvent .= "\nconsole.log(" . json_encode($delayData) . ");";
             }
-
-            $result = "<$tagName>\n" . $initEvent . "</$tagName>";
         }
-        return $result;
+
+        return "<$tagName>\n" . $initEvent . "\n" . $pushs . "\n</$tagName>";
     }
 
     public static function addClickGTMParams(array $params): string
